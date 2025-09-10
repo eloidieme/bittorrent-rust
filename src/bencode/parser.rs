@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Range};
 
 use crate::bencode::{
     Value,
@@ -26,6 +26,34 @@ pub fn parse_value<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> 
             expected: "one of: digit / 'i' / 'l' / 'd'",
         }),
     }
+}
+
+pub fn extract_dict_value_range<'l>(cur: &mut Cursor<'l>, key: &'l str) -> Result<Range<usize>> {
+    cur.expect_byte(b'd')?;
+    let (start, end);
+    let depth = 1;
+
+    loop {
+        match cur.peek() {
+            Some(b'e') => todo!("key not found (add an error variant)"),
+            Some(_) => {
+                let Value::String(k) = parse_string(cur)? else {
+                    todo!("error: key is not a string")
+                };
+                if k == key.as_bytes() {
+                    start = cur.pos;
+                    parse_value(cur, depth)?;
+                    end = cur.pos;
+                    break;
+                } else {
+                    parse_value(cur, depth)?;
+                }
+            }
+            None => todo!("no end terminator error"),
+        }
+    }
+
+    Ok(start..end)
 }
 
 fn parse_string<'l>(cur: &mut Cursor<'l>) -> Result<Value<'l>> {
@@ -157,6 +185,7 @@ fn parse_list<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> {
             }
         }
     }
+
     Ok(Value::List(items))
 }
 
@@ -188,4 +217,19 @@ fn parse_dict<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> {
     }
 
     Ok(Value::Dict(map))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_extract_dict_value_range() {
+        let input = "d5:hellol4:eloi3:eggi54ee7:explain4:spame".as_bytes();
+        let mut cur = Cursor::new(input);
+
+        let range = extract_dict_value_range(&mut cur, "hello").unwrap();
+        let out = std::str::from_utf8(&input[range]).unwrap();
+        println!("{:?}", out);
+    }
 }
