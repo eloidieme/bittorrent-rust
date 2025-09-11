@@ -21,6 +21,7 @@ pub enum Error {
     InvalidPeerId(usize),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum AnnounceEvent {
     Started,
@@ -58,7 +59,7 @@ pub struct AnnounceParams<'a> {
 
 pub fn new_client() -> Result<Client> {
     let client = Client::builder()
-        .user_agent("my-bittorrent-client/0.1")
+        .user_agent("bittorrent-rust/0.1")
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(10))
         .build()?;
