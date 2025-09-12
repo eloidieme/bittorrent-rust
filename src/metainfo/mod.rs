@@ -1,5 +1,5 @@
-mod error;
-mod helpers;
+pub mod error;
+pub mod helpers;
 
 use serde::Serialize;
 

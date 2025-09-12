@@ -5,6 +5,9 @@ use std::time::Duration;
 use thiserror::Error;
 use url::Url;
 
+use crate::bencode::Value;
+use crate::metainfo;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
@@ -19,6 +22,10 @@ pub enum Error {
     InvalidInfoHash(usize),
     #[error("invalid peer_id length {0}, expected 20")]
     InvalidPeerId(usize),
+    #[error(transparent)]
+    ParsingHelpers(#[from] metainfo::error::Error),
+    #[error(transparent)]
+    IntParsing(#[from] std::num::ParseIntError),
 }
 
 #[allow(dead_code)]
@@ -55,6 +62,18 @@ pub struct AnnounceParams<'a> {
     pub event: Option<AnnounceEvent>,
     pub key: Option<&'a str>,
     pub ip: Option<&'a str>,
+}
+
+#[derive(Debug)]
+pub struct PeersList {
+    interval: u64,
+    peers: Vec<Peer>,
+}
+
+#[derive(Debug)]
+pub struct Peer {
+    ip: String,
+    port: String,
 }
 
 pub fn new_client() -> Result<Client> {
@@ -127,4 +146,31 @@ pub fn perform_announce(
 
     let body = resp.bytes()?;
     Ok(body)
+}
+
+impl PeersList {
+    pub fn from(decoded_value: Value) -> Result<Self> {
+        let root = metainfo::helpers::dict(&decoded_value, "<root>")?;
+        let peers = metainfo::helpers::as_list(metainfo::helpers::get(root, "peers")?, "peers")?
+            .iter()
+            .map(|peer| -> Result<Peer> {
+                let d = metainfo::helpers::dict(peer, "peer")?;
+                let (ip, port) = (
+                    metainfo::helpers::as_str(metainfo::helpers::get(d, "ip")?, "ip")?,
+                    metainfo::helpers::as_str(metainfo::helpers::get(d, "port")?, "port")?,
+                );
+                Ok(Peer {
+                    ip: ip.to_owned(),
+                    port: port.to_owned(),
+                })
+            })
+            .filter_map(|p| p.ok())
+            .collect();
+
+        let interval =
+            metainfo::helpers::as_str(metainfo::helpers::get(root, "interval")?, "interval")?
+                .parse()?;
+
+        Ok(PeersList { interval, peers })
+    }
 }

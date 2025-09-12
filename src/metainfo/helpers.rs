@@ -5,10 +5,7 @@ use crate::{
     metainfo::error::{Error, Result},
 };
 
-pub(crate) fn dict<'l>(
-    v: &'l Value<'l>,
-    key: &'static str,
-) -> Result<&'l HashMap<&'l [u8], Value<'l>>> {
+pub fn dict<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l HashMap<&'l [u8], Value<'l>>> {
     match v {
         Value::Dict(d) => Ok(d),
         _ => Err(Error::WrongType {
@@ -18,21 +15,15 @@ pub(crate) fn dict<'l>(
     }
 }
 
-pub(crate) fn get<'l>(
-    d: &'l HashMap<&'l [u8], Value<'l>>,
-    key: &'static str,
-) -> Result<&'l Value<'l>> {
+pub fn get<'l>(d: &'l HashMap<&'l [u8], Value<'l>>, key: &'static str) -> Result<&'l Value<'l>> {
     d.get(key.as_bytes()).ok_or(Error::MissingKey { key })
 }
 
-pub(crate) fn maybe<'l>(
-    d: &'l HashMap<&'l [u8], Value<'l>>,
-    key: &'static str,
-) -> Option<&'l Value<'l>> {
+pub fn maybe<'l>(d: &'l HashMap<&'l [u8], Value<'l>>, key: &'static str) -> Option<&'l Value<'l>> {
     d.get(key.as_bytes())
 }
 
-pub(crate) fn as_bytes<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l [u8]> {
+pub fn as_bytes<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l [u8]> {
     match v {
         Value::String(b) => Ok(*b),
         _ => Err(Error::WrongType {
@@ -42,12 +33,12 @@ pub(crate) fn as_bytes<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l [u
     }
 }
 
-pub(crate) fn as_str<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l str> {
+pub fn as_str<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l str> {
     let b = as_bytes(v, key)?;
     std::str::from_utf8(b).map_err(|e| Error::Utf8 { key, source: e })
 }
 
-pub(crate) fn as_u64(v: &Value<'_>, key: &'static str) -> Result<u64> {
+pub fn as_u64(v: &Value<'_>, key: &'static str) -> Result<u64> {
     match v {
         Value::Integer(i) => {
             if *i < 0 {
@@ -63,7 +54,7 @@ pub(crate) fn as_u64(v: &Value<'_>, key: &'static str) -> Result<u64> {
     }
 }
 
-pub(crate) fn as_list<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l [Value<'l>]> {
+pub fn as_list<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l [Value<'l>]> {
     match v {
         Value::List(vec) => Ok(vec.as_slice()),
         _ => Err(Error::WrongType {
@@ -73,7 +64,7 @@ pub(crate) fn as_list<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l [Va
     }
 }
 
-pub(crate) fn read_path<'l>(
+pub fn read_path<'l>(
     file_dict: &'l HashMap<&'l [u8], Value<'l>>,
     index: usize,
 ) -> Result<Vec<&'l str>> {

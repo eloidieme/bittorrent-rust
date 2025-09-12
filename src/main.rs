@@ -6,7 +6,7 @@ mod metainfo;
 use std::env;
 
 use crate::{
-    announce::{AnnounceEvent, AnnounceParams, perform_announce},
+    announce::{AnnounceEvent, AnnounceParams, PeersList, perform_announce},
     bencode::parse_bencoded_value,
     infohash::compute_info_hash,
     metainfo::Metainfo,
@@ -45,8 +45,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = announce::new_client()?;
     let resp = perform_announce(&client, metainfo.announce, announce_qp)?;
     let decoded_response = parse_bencoded_value(&resp)?.0;
+    let peers_list = PeersList::from(decoded_response)?;
     // println!("{}", serde_json::to_string_pretty(&metainfo)?);
-    println!("{decoded_response:?}");
+    println!("{peers_list:?}");
 
     Ok(())
 }
