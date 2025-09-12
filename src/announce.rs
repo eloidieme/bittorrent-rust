@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use reqwest::StatusCode;
 use reqwest::blocking::Client;
+use serde::Serialize;
 use std::time::Duration;
 use thiserror::Error;
 use url::Url;
@@ -64,16 +65,18 @@ pub struct AnnounceParams<'a> {
     pub ip: Option<&'a str>,
 }
 
-#[derive(Debug)]
+#[allow(dead_code)]
+#[derive(Debug, Serialize)]
 pub struct PeersList {
     interval: u64,
     peers: Vec<Peer>,
 }
 
-#[derive(Debug)]
+#[allow(dead_code)]
+#[derive(Debug, Serialize)]
 pub struct Peer {
     ip: String,
-    port: String,
+    port: u64,
 }
 
 pub fn new_client() -> Result<Client> {
@@ -157,19 +160,18 @@ impl PeersList {
                 let d = metainfo::helpers::dict(peer, "peer")?;
                 let (ip, port) = (
                     metainfo::helpers::as_str(metainfo::helpers::get(d, "ip")?, "ip")?,
-                    metainfo::helpers::as_str(metainfo::helpers::get(d, "port")?, "port")?,
+                    metainfo::helpers::as_u64(metainfo::helpers::get(d, "port")?, "port")?,
                 );
                 Ok(Peer {
                     ip: ip.to_owned(),
-                    port: port.to_owned(),
+                    port,
                 })
             })
             .filter_map(|p| p.ok())
             .collect();
 
         let interval =
-            metainfo::helpers::as_str(metainfo::helpers::get(root, "interval")?, "interval")?
-                .parse()?;
+            metainfo::helpers::as_u64(metainfo::helpers::get(root, "interval")?, "interval")?;
 
         Ok(PeersList { interval, peers })
     }
