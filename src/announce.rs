@@ -68,15 +68,15 @@ pub struct AnnounceParams<'a> {
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct PeersList {
-    interval: u64,
-    peers: Vec<Peer>,
+    pub interval: u64,
+    pub peers: Vec<Peer>,
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct Peer {
-    ip: String,
-    port: u64,
+    pub ip: String,
+    pub port: u64,
 }
 
 pub fn new_client() -> Result<Client> {
