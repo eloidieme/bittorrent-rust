@@ -56,34 +56,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let peer = peers_list.peers.first().unwrap();
     let peer_address = std::net::Ipv4Addr::from_str(&format!("{}", &peer.ip))?;
     let addr = SocketAddr::new(std::net::IpAddr::V4(peer_address), peer.port as u16);
-    println!("{addr}");
 
     let mut stream = TcpStream::connect(addr)?;
-    // this can be a func -> message assembly
-    let mut handshake: Vec<u8> = vec![19];
-    handshake.extend_from_slice("BitTorrent protocol".as_bytes());
-    handshake.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0]);
-    handshake.extend_from_slice(&info_hash);
-    handshake.extend_from_slice("12345678901234567890".as_bytes());
-    println!("{handshake:?}");
-    // then comms on a top-level func that takes only a tcp stream and a message, and returns a buffer
-    stream.write(&handshake)?;
-
-    let mut resp_buf = [0u8; 68];
-    stream.read(&mut resp_buf)?;
-    println!("{resp_buf:?}");
-
-    // stream is closed at the end of the scope
-    // comms will be a collection of funcs, always taking in a stream and a buffer, (and returning status code?? or panics?)
+    let handshake_message = build_handshake_message(&info_hash, "12345678901234567890");
+    let response = send_message(&mut stream, &handshake_message)?;
+    println!("{response:?}");
 
     Ok(())
 }
 
-// fn message_assembly<'l>(info_hash: &'l [u8], peer_id: &'l [u8]) -> &'l [u8] {
-//     let mut handshake: Vec<u8> = vec![19];
-//     handshake.extend_from_slice("BitTorrent protocol".as_bytes());
-//     handshake.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0]);
-//     handshake.extend_from_slice(&info_hash);
-//     handshake.extend_from_slice("12345678901234567890".as_bytes());
-//     println!("{handshake:?}");
-// }
+fn build_handshake_message(info_hash: &[u8], peer_id: &str) -> Vec<u8> {
+    let mut handshake: Vec<u8> = vec![19];
+    handshake.extend_from_slice("BitTorrent protocol".as_bytes());
+    handshake.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0]);
+    handshake.extend_from_slice(info_hash);
+    handshake.extend_from_slice(peer_id.as_bytes());
+
+    handshake
+}
+
+fn send_message(stream: &mut TcpStream, message: &[u8]) -> std::io::Result<Vec<u8>> {
+    stream.write_all(message)?;
+
+    let mut resp = vec![0u8; 68];
+    let mut got = 0;
+    while got < 68 {
+        let n = stream.read(&mut resp[got..])?;
+        if n == 0 { break; } // peer closed
+        got += n;
+    }
+    resp.truncate(got);
+    Ok(resp)
+}
