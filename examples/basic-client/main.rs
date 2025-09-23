@@ -55,6 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tracker_resp = perform_announce(&client, metainfo.announce, announce_params)?;
 
     let (decoded_response, _) = parse_bencoded_value(&tracker_resp)?;
+
     let peers_list = PeersList::from(decoded_response)?;
 
     println!("Found {} peer(s) from tracker.", peers_list.peers.len());
@@ -77,9 +78,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     println!("Connected to peer: {}", peer_connection.peer_addr());
-    if let Some(peer_id) = peer_connection.peer_id() {
-        println!("Peer ID: {}", peer_id);
+    if let Some(peer_id) = peer_connection.remote_peer_id() {
+        println!("Remote Peer ID: {}", peer_id);
     }
+    println!("Our Peer ID: {}", peer_connection.our_peer_id());
 
     let keep_alive = vec![0, 0, 0, 0];
     peer_connection.send_message_no_response(&keep_alive)?;

@@ -10,7 +10,8 @@ use crate::peer_protocol::error::{PeerProtocolError, Result};
 pub struct PeerConnection {
     stream: TcpStream,
     peer_addr: SocketAddr,
-    peer_id: Option<String>,
+    our_peer_id: String,
+    remote_peer_id: Option<String>,
     info_hash: Vec<u8>,
 }
 
@@ -28,18 +29,17 @@ impl PeerConnection {
         let stream = TcpStream::connect(peer_addr)
             .map_err(|e| PeerProtocolError::ConnectionFailed(e.to_string()))?;
 
-        // Set timeouts for the connection
         stream.set_read_timeout(Some(Duration::from_secs(30)))?;
         stream.set_write_timeout(Some(Duration::from_secs(30)))?;
 
         let mut connection = Self {
             stream,
             peer_addr,
-            peer_id: Some(peer_id.to_string()),
+            our_peer_id: peer_id.to_string(),
+            remote_peer_id: None,
             info_hash: info_hash.to_vec(),
         };
 
-        // Perform handshake
         connection.perform_handshake()?;
 
         Ok(connection)
@@ -49,11 +49,9 @@ impl PeerConnection {
     fn perform_handshake(&mut self) -> Result<()> {
         let handshake_message = self.build_handshake_message();
 
-        // Send handshake
         self.stream.write_all(&handshake_message)?;
         self.stream.flush()?;
 
-        // Read handshake response
         let mut response = vec![0u8; 68];
         let mut bytes_read = 0;
 
@@ -65,7 +63,6 @@ impl PeerConnection {
             bytes_read += n;
         }
 
-        // Validate handshake response
         self.validate_handshake_response(&response)?;
 
         Ok(())
@@ -77,7 +74,7 @@ impl PeerConnection {
         handshake.extend_from_slice("BitTorrent protocol".as_bytes());
         handshake.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0]); // Reserved bytes
         handshake.extend_from_slice(&self.info_hash);
-        handshake.extend_from_slice(self.peer_id.as_ref().unwrap().as_bytes());
+        handshake.extend_from_slice(self.our_peer_id.as_bytes());
         handshake
     }
 
@@ -100,8 +97,8 @@ impl PeerConnection {
             return Err(PeerProtocolError::InfoHashMismatch);
         }
 
-        // Store peer's ID
-        self.peer_id = Some(String::from_utf8_lossy(&response[48..68]).to_string());
+        // Store remote peer's ID
+        self.remote_peer_id = Some(String::from_utf8_lossy(&response[48..68]).to_string());
 
         Ok(())
     }
@@ -148,9 +145,14 @@ impl PeerConnection {
         self.peer_addr
     }
 
-    /// Gets the peer's ID (if available)
-    pub fn peer_id(&self) -> Option<&str> {
-        self.peer_id.as_deref()
+    /// Gets our peer ID
+    pub fn our_peer_id(&self) -> &str {
+        &self.our_peer_id
+    }
+
+    /// Gets the remote peer's ID (if available)
+    pub fn remote_peer_id(&self) -> Option<&str> {
+        self.remote_peer_id.as_deref()
     }
 
     /// Gets the info hash
