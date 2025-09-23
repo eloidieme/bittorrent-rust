@@ -7,7 +7,7 @@ use crate::{
     infohash::error::Result,
 };
 
-pub fn compute_info_hash<'l>(input: &'l [u8]) -> Result<Vec<u8>> {
+pub fn compute_info_hash(input: &[u8]) -> Result<Vec<u8>> {
     let mut cur = Cursor::new(input);
     let raw_info_dict_range = extract_dict_value_range(&mut cur, "info")?;
     let raw_info_dict = &input[raw_info_dict_range];

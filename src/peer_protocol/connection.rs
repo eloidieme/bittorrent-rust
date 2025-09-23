@@ -96,7 +96,7 @@ impl PeerConnection {
         }
 
         // Check info hash
-        if &response[28..48] != &self.info_hash {
+        if response[28..48] != self.info_hash {
             return Err(PeerProtocolError::InfoHashMismatch);
         }
 

@@ -47,7 +47,7 @@ impl<'l> Metainfo<'l> {
         let announce = as_str(get(root, "announce")?, "announce")?;
 
         let info_v = get(root, "info")?;
-        let info_d = dict(&info_v, "info")?;
+        let info_d = dict(info_v, "info")?;
 
         let name = as_str(get(info_d, "name")?, "name")?;
 

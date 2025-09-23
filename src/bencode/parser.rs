@@ -38,7 +38,7 @@ pub fn extract_dict_value_range<'l>(cur: &mut Cursor<'l>, key: &'l str) -> Resul
     loop {
         match cur.peek() {
             Some(b'e') => {
-                cur.next();
+                cur.advance();
                 cur.pos = saved_pos;
                 return Err(Error::DictKeyNotFound {
                     at: Offset(saved_pos),
@@ -191,7 +191,7 @@ fn parse_integer<'l>(cur: &mut Cursor<'l>) -> Result<Value<'l>> {
 
     let mut val: i64 = 0;
     for &d in digits {
-        if !(b'0'..=b'9').contains(&d) {
+        if !d.is_ascii_digit() {
             return Err(Error::InvalidIntegerSyntax {
                 at: start,
                 raw: String::from_utf8_lossy(raw).into_owned(),
@@ -220,7 +220,7 @@ fn parse_list<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> {
     loop {
         match cur.peek() {
             Some(b'e') => {
-                cur.next();
+                cur.advance();
                 break;
             }
             Some(_) => items.push(parse_value(cur, depth + 1)?),
@@ -242,7 +242,7 @@ fn parse_dict<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> {
     loop {
         match cur.peek() {
             Some(b'e') => {
-                cur.next();
+                cur.advance();
                 break;
             }
             Some(_) => {

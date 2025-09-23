@@ -23,14 +23,14 @@ impl<'l> Cursor<'l> {
         self.buf.get(self.pos).copied()
     }
 
-    pub fn next(&mut self) -> Option<u8> {
+    pub fn advance(&mut self) -> Option<u8> {
         let b = self.peek()?;
         self.pos += 1;
         Some(b)
     }
 
     pub fn expect_byte(&mut self, expected: u8) -> Result<()> {
-        match self.next() {
+        match self.advance() {
             Some(b) if b == expected => Ok(()),
             Some(found) => Err(Error::UnexpectedByte {
                 at: self.offset_minus(1),

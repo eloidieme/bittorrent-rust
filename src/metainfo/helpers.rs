@@ -9,7 +9,7 @@ pub fn dict<'l>(v: &'l Value<'l>, key: &'static str) -> Result<&'l HashMap<&'l [
     match v {
         Value::Dict(d) => Ok(d),
         _ => Err(Error::WrongType {
-            key: key,
+            key,
             expected: "dict",
         }),
     }
