@@ -1,1 +1,39 @@
-/target
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug/Development files
+*.log
+*.tmp
+debug/
+temp/
+examples/debug/*.json
+
+# Torrent files (keep examples but ignore user downloads)
+downloads/
+*.torrent
+!examples/torrents/*.torrent
+
+# Build artifacts
+*.d
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Test outputs
+test-results/
+coverage/

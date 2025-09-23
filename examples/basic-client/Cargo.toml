@@ -1,0 +1,11 @@
+[package]
+name = "basic-client"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "basic-client"
+path = "main.rs"
+
+[dependencies]
+bittorrent-rust = { path = "../.." }

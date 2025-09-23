@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., v0.1.0)"
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-publish:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify tag matches Cargo.toml
+        run: |
+          VERSION_TAG="${{ steps.version.outputs.version }}"
+          CARGO_VERSION=$(grep '^version' Cargo.toml | cut -d'"' -f2)
+          if [ "v$CARGO_VERSION" != "$VERSION_TAG" ]; then
+            echo "Version mismatch: Cargo.toml has $CARGO_VERSION but tag is $VERSION_TAG"
+            exit 1
+          fi
+
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Run tests
+        run: cargo test --release
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Create release archive
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p release
+          cp target/release/examples/basic-client release/
+          cp README.md release/
+          cp LICENSE* release/ 2>/dev/null || true
+          tar -czf "bittorrent-rust-${VERSION}-linux-x86_64.tar.gz" -C release .
+          ls -la *.tar.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## BitTorrent Rust Client ${{ steps.version.outputs.version }}
+
+            ### Changes
+            - See [CHANGELOG.md](CHANGELOG.md) for detailed changes
+
+            ### Installation
+            ```bash
+            # Download and extract the archive
+            tar -xzf bittorrent-rust-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
+            chmod +x basic-client
+            ./basic-client --help
+            ```
+
+            ### Building from source
+            ```bash
+            git clone <repository-url>
+            cd bittorrent-rust
+            cargo build --release
+            cargo run --example basic-client -- <torrent-file>
+            ```
+          files: |
+            bittorrent-rust-*.tar.gz
+          draft: false
+          prerelease: false

@@ -327,7 +327,7 @@ mod integration_tests {
 
     #[test]
     fn complex_torrent_like_structure() {
-        let torrent_data = include_bytes!("../../debian.iso.torrent");
+        let torrent_data = include_bytes!("../../examples/torrents/debian.iso.torrent");
         let (bencode_value, rest) = parse_bencoded_value(torrent_data).unwrap();
         assert_eq!(rest, b""); // Should consume all data
 

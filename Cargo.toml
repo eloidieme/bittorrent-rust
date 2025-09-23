@@ -2,6 +2,16 @@
 name = "bittorrent-rust"
 version = "0.1.0"
 edition = "2024"
+description = "A minimal BitTorrent client implementation in Rust"
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+repository = "https://github.com/yourusername/bittorrent-rust"
+keywords = ["bittorrent", "p2p", "torrent", "client"]
+categories = ["network-programming", "web-programming::http-client"]
+
+[[example]]
+name = "basic-client"
+path = "examples/basic-client/main.rs"
 
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
