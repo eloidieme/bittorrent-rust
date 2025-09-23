@@ -359,9 +359,9 @@ mod tests {
     }
 
     mod announce_tests {
-        use crate::announce::announce::perform_announce;
         use crate::announce::client::new_client;
         use crate::announce::params::AnnounceParams;
+        use crate::announce::perform_announce;
 
         #[test]
         fn test_perform_announce_invalid_url() {
