@@ -1,7 +1,7 @@
 use std::{env, net::SocketAddr, str::FromStr};
 
 use bittorrent_rust::{
-    announce::{AnnounceParams, PeersList, new_client, perform_announce},
+    announce::{AnnounceEvent, AnnounceParams, PeersList, new_client, perform_announce},
     bencode::parse_bencoded_value,
     generate_peer_id,
     infohash::compute_info_hash,
@@ -38,18 +38,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Info::SingleFile { length, .. } => *length,
         Info::MultiFile { files, .. } => files.iter().map(|f| f.length).sum(),
     };
-    let announce_params = AnnounceParams {
-        info_hash: &info_hash,
-        peer_id: peer_id.as_bytes(),
+
+    let announce_params = AnnounceParams::new(
+        &info_hash,
+        peer_id.as_bytes(),
         port,
-        uploaded: 0,
-        downloaded: 0,
+        0, // uploaded
+        0, // downloaded
         left,
-        ..Default::default()
-    };
+    )?
+    .with_event(AnnounceEvent::Started)
+    .with_numwant(50); // Request up to 50 peers
 
     let client = new_client()?;
+    println!("Announcing to tracker: {}", metainfo.announce);
     let tracker_resp = perform_announce(&client, metainfo.announce, announce_params)?;
+
     let (decoded_response, _) = parse_bencoded_value(&tracker_resp)?;
     let peers_list = PeersList::from(decoded_response)?;
 
