@@ -104,4 +104,11 @@ impl<'l> Metainfo<'l> {
 
         Ok(Metainfo { announce, info })
     }
+
+    pub fn name(&self) -> &'l str {
+        match &self.info {
+            Info::SingleFile { name, .. } => name,
+            Info::MultiFile { name, .. } => name,
+        }
+    }
 }

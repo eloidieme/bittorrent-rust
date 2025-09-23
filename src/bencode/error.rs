@@ -61,6 +61,9 @@ pub enum Error {
     #[error("non-string dictionary key at {at:?}")]
     NonStringDictKey { at: Offset },
 
+    #[error("key `{key}` not found in dict at {at:?}")]
+    DictKeyNotFound { at: Offset, key: String },
+
     // Limits
     #[error("nesting depth limit exceeded at {at:?}")]
     DepthLimit { at: Offset },

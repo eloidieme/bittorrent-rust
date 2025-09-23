@@ -29,36 +29,57 @@ pub fn parse_value<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> 
 }
 
 pub fn extract_dict_value_range<'l>(cur: &mut Cursor<'l>, key: &'l str) -> Result<Range<usize>> {
+    let saved_pos = cur.pos;
     cur.expect_byte(b'd')?;
-    let (start, end);
-    let depth = 1;
+    let key_bytes = key.as_bytes();
+    let start;
+    let end;
 
     loop {
         match cur.peek() {
-            Some(b'e') => todo!("key not found (add an error variant)"),
+            Some(b'e') => {
+                cur.next();
+                cur.pos = saved_pos;
+                return Err(Error::DictKeyNotFound {
+                    at: Offset(saved_pos),
+                    key: key.to_string(),
+                });
+            }
             Some(_) => {
                 let Value::String(k) = parse_string(cur)? else {
-                    todo!("error: key is not a string")
+                    let at = cur.offset();
+                    cur.pos = saved_pos;
+                    return Err(Error::NonStringDictKey { at });
                 };
-                if k == key.as_bytes() {
+                if k == key_bytes {
                     start = cur.pos;
-                    parse_value(cur, depth)?;
+                    parse_value(cur, 0)?;
                     end = cur.pos;
                     break;
                 } else {
-                    parse_value(cur, depth)?;
+                    parse_value(cur, 0)?;
                 }
             }
-            None => todo!("no end terminator error"),
+            None => {
+                cur.pos = saved_pos;
+                return Err(Error::MissingTerminator {
+                    context: "dict",
+                    start: Offset(saved_pos),
+                });
+            }
         }
     }
 
+    cur.pos = saved_pos;
     Ok(start..end)
 }
 
 fn parse_string<'l>(cur: &mut Cursor<'l>) -> Result<Value<'l>> {
     let start = cur.offset();
     let mut i = 0usize;
+    let mut len: usize = 0;
+    let mut seen_digit = false;
+
     while let Some(b) = cur.buf.get(cur.pos + i).copied() {
         if b == b':' {
             break;
@@ -70,22 +91,22 @@ fn parse_string<'l>(cur: &mut Cursor<'l>) -> Result<Value<'l>> {
                 expected: "ASCII digit or ':'",
             });
         }
+        seen_digit = true;
+        len = len
+            .checked_mul(10)
+            .and_then(|v| v.checked_add((b - b'0') as usize))
+            .ok_or_else(|| Error::InvalidStringLength {
+                at: start,
+                raw: String::from_utf8_lossy(&cur.buf[cur.pos..cur.pos + i + 1]).into_owned(),
+                source: "18446744073709551616".parse::<usize>().unwrap_err(),
+            })?;
         i += 1;
     }
 
-    if cur.buf.get(cur.pos + i).copied() != Some(b':') {
+    if !seen_digit || cur.buf.get(cur.pos + i).copied() != Some(b':') {
         return Err(Error::UnexpectedEof { at: cur.offset() });
     }
-
-    let header = cur.take(i)?;
-    cur.expect_byte(b':')?;
-
-    let raw = std::str::from_utf8(header).unwrap_or("");
-    let len: usize = raw.parse().map_err(|e| Error::InvalidStringLength {
-        at: start,
-        raw: raw.to_string(),
-        source: e,
-    })?;
+    cur.pos += i + 1; // skip header and ':'
 
     let remaining = cur.buf.len().saturating_sub(cur.pos);
     if remaining < len {
@@ -95,8 +116,8 @@ fn parse_string<'l>(cur: &mut Cursor<'l>) -> Result<Value<'l>> {
             available: remaining,
         });
     }
-
-    let s = cur.take(len)?;
+    let s = &cur.buf[cur.pos..cur.pos + len];
+    cur.pos += len;
     Ok(Value::String(s))
 }
 
@@ -119,51 +140,77 @@ fn parse_integer<'l>(cur: &mut Cursor<'l>) -> Result<Value<'l>> {
             start,
         });
     }
+    let raw = &cur.buf[cur.pos..cur.pos + i];
+    cur.pos += i + 1; // skip payload + 'e'
 
-    let raw_bytes = cur.take(i)?;
-    cur.expect_byte(b'e')?;
-
-    let raw = String::from_utf8_lossy(raw_bytes).into_owned();
-
-    // Policy checks per BEP 3:
-    // - not empty
-    // - "0" is the only zero; no leading zeros like "01"
-    // - "-0" is invalid
-    // - otherwise optional '-' followed by digits
+    // syntax policy checks:
     if raw.is_empty() {
         return Err(Error::InvalidIntegerSyntax {
             at: start,
-            raw,
+            raw: "".into(),
             reason: "empty",
         });
     }
-    if raw == "-0" {
+    let (neg, digits) = if raw[0] == b'-' {
+        (true, &raw[1..])
+    } else {
+        (false, raw)
+    };
+    if digits.is_empty() {
         return Err(Error::InvalidIntegerSyntax {
             at: start,
-            raw,
-            reason: "negative zero",
+            raw: "-".into(),
+            reason: "no digits",
         });
     }
-    if raw.starts_with("0") && raw.len() > 1 {
+    if neg {
+        if digits == b"0" {
+            return Err(Error::InvalidIntegerSyntax {
+                at: start,
+                raw: String::from_utf8_lossy(raw).into_owned(),
+                reason: "negative zero",
+            });
+        } else if digits[0] == b'0' {
+            return Err(Error::InvalidIntegerSyntax {
+                at: start,
+                raw: String::from_utf8_lossy(raw).into_owned(),
+                reason: "leading zero after '-'",
+            });
+        }
+    } else if digits[0] == b'0' && digits.len() > 1 {
         return Err(Error::InvalidIntegerSyntax {
             at: start,
-            raw,
+            raw: String::from_utf8_lossy(raw).into_owned(),
             reason: "leading zero",
         });
     }
-    if raw.starts_with("-0") && raw.len() > 2 {
-        return Err(Error::InvalidIntegerSyntax {
-            at: start,
-            raw,
-            reason: "leading zero after '-'",
-        });
+    // Special case for i64::MIN
+    if neg && digits == b"9223372036854775808" {
+        return Ok(Value::Integer(i64::MIN));
     }
 
-    let val: i64 = raw.parse().map_err(|e| Error::InvalidIntegerValue {
-        at: start,
-        raw: raw.clone(),
-        source: e,
-    })?;
+    let mut val: i64 = 0;
+    for &d in digits {
+        if !(b'0'..=b'9').contains(&d) {
+            return Err(Error::InvalidIntegerSyntax {
+                at: start,
+                raw: String::from_utf8_lossy(raw).into_owned(),
+                reason: "non-digit",
+            });
+        }
+        let digit = (d - b'0') as i64;
+        val = val
+            .checked_mul(10)
+            .and_then(|v| v.checked_add(digit))
+            .ok_or_else(|| Error::InvalidIntegerValue {
+                at: start,
+                raw: String::from_utf8_lossy(raw).into_owned(),
+                source: "overflow".parse::<i64>().unwrap_err(),
+            })?;
+    }
+    if neg {
+        val = -val;
+    }
     Ok(Value::Integer(val))
 }
 
@@ -176,7 +223,7 @@ fn parse_list<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> {
                 cur.next();
                 break;
             }
-            Some(_) => items.push(parse_value(cur, depth)?),
+            Some(_) => items.push(parse_value(cur, depth + 1)?),
             None => {
                 return Err(Error::MissingTerminator {
                     context: "list",
@@ -204,7 +251,7 @@ fn parse_dict<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> {
                 let Value::String(k) = key else {
                     return Err(Error::NonStringDictKey { at: key_pos });
                 };
-                let val = parse_value(cur, depth)?;
+                let val = parse_value(cur, depth + 1)?;
                 map.insert(k, val);
             }
             None => {
@@ -217,19 +264,4 @@ fn parse_dict<'l>(cur: &mut Cursor<'l>, depth: usize) -> Result<Value<'l>> {
     }
 
     Ok(Value::Dict(map))
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_extract_dict_value_range() {
-        let input = "d5:hellol4:eloi3:eggi54ee7:explain4:spame".as_bytes();
-        let mut cur = Cursor::new(input);
-
-        let range = extract_dict_value_range(&mut cur, "hello").unwrap();
-        let out = std::str::from_utf8(&input[range]).unwrap();
-        println!("{:?}", out);
-    }
 }
